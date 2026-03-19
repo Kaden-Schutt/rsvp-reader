@@ -78,12 +78,25 @@ export class RsvpView extends ItemView {
         this.plugin.llmService,
         this.document.title
       );
-      // Provide it to the chat panel if open
+    }
+
+    // Restore persisted session
+    const session = this.plugin.sessionStore.getSession(this.filePath);
+    if (session) {
+      if (session.tokenIndex > 0) {
+        this.engine.seekToToken(session.tokenIndex);
+      }
+      if (this.summaryManager) {
+        this.summaryManager.restore(
+          session.sectionSummaries,
+          session.rollingSummary
+        );
+      }
       const chat = this.plugin.getChatPanel();
       if (chat) {
+        chat.restoreMessages(session.messages);
         chat.summaryManager = this.summaryManager;
         chat.llmService = this.plugin.llmService;
-        chat.clearMessages();
       }
     }
 
@@ -113,7 +126,10 @@ export class RsvpView extends ItemView {
     }
 
     const readerArea = readerWindow.createDiv({ cls: "rsvp-reader-area" });
-    readerArea.addEventListener("click", () => this.engine?.togglePlayPause());
+    readerArea.addEventListener("click", () => {
+      this.engine?.togglePlayPause();
+      this.contentEl.focus();
+    });
     readerArea.style.cursor = "pointer";
     this.wordDisplay = new WordDisplay(readerArea);
     this.wordDisplay.clear();
@@ -165,6 +181,10 @@ export class RsvpView extends ItemView {
       const state = this.engine?.getState();
       if (state && this.wpmOverlay) {
         this.wpmOverlay.textContent = `${state.wpm} wpm`;
+      }
+      // Persist on pause
+      if (state?.status === "paused") {
+        this.persistSession();
       }
     });
 
@@ -220,6 +240,16 @@ export class RsvpView extends ItemView {
       chat.summaryManager = this.summaryManager;
       chat.llmService = this.plugin.llmService;
       chat.systemPrompt = this.plugin.settings.llmSystemPrompt;
+      chat.onMessagesChanged = () => this.persistSession();
+
+      // Restore messages from session if chat was just opened fresh
+      if (chat.getMessages().length === 0) {
+        const session = this.plugin.sessionStore.getSession(this.filePath);
+        if (session && session.messages.length > 0) {
+          chat.restoreMessages(session.messages);
+        }
+      }
+
       if (this.document && this.engine) {
         const token = this.engine.getCurrentToken();
         const si = token?.sectionIndex ?? 0;
@@ -273,7 +303,23 @@ export class RsvpView extends ItemView {
     meta.textContent = `${currentIndex} / ${state.totalTokens} words \u00B7 ${timeStr}`;
   }
 
+  /** Persist current session state (debounced by SessionStore) */
+  private persistSession(): void {
+    if (!this.filePath) return;
+    const chat = this.plugin.getChatPanel();
+    this.plugin.sessionStore.saveSession({
+      filePath: this.filePath,
+      tokenIndex: this.engine?.getState().currentTokenIndex ?? 0,
+      messages: chat?.getMessages() ?? [],
+      sectionSummaries: this.summaryManager?.getSectionSummaries() ?? [],
+      rollingSummary: this.summaryManager?.getRollingSummary() ?? "",
+      lastAccessed: Date.now(),
+    });
+  }
+
   async onClose(): Promise<void> {
+    this.persistSession();
+    await this.plugin.sessionStore.persist();
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.engine?.pause();
     this.engine = null;

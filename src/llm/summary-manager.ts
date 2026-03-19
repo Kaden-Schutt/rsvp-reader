@@ -1,5 +1,6 @@
 import { Section } from "../types";
 import { LlmService } from "./llm-service";
+import { SectionSummaryData } from "./session-store";
 
 export interface ReadingContext {
   documentTitle: string;
@@ -10,11 +11,7 @@ export interface ReadingContext {
   totalTokens: number;
 }
 
-interface SectionSummary {
-  sectionIndex: number;
-  heading: string;
-  summary: string;
-}
+type SectionSummary = SectionSummaryData;
 
 const COMPACTION_THRESHOLD = 3000; // characters
 
@@ -129,5 +126,18 @@ export class SummaryManager {
     this.sectionSummaries = [];
     this.rollingSummary = "";
     this.summarizing = false;
+  }
+
+  /** Restore from persisted session data */
+  restore(
+    sectionSummaries: SectionSummary[],
+    rollingSummary: string
+  ): void {
+    this.sectionSummaries = sectionSummaries;
+    this.rollingSummary = rollingSummary;
+  }
+
+  getSectionSummaries(): SectionSummary[] {
+    return [...this.sectionSummaries];
   }
 }

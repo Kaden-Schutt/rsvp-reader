@@ -1,4 +1,4 @@
-import { Plugin, TFile, WorkspaceLeaf } from "obsidian";
+import { Plugin, TFile } from "obsidian";
 import {
   VIEW_TYPE_RSVP,
   VIEW_TYPE_CHAT,
@@ -8,14 +8,17 @@ import {
 import { RsvpView } from "./views/rsvp-view";
 import { ChatPanel } from "./llm/chat-panel";
 import { LlmService } from "./llm/llm-service";
+import { SessionStore } from "./llm/session-store";
 import { RsvpSettingTab } from "./settings";
 
 export default class RsvpPlugin extends Plugin {
   settings: RsvpSettings = DEFAULT_SETTINGS;
   llmService: LlmService | null = null;
+  sessionStore: SessionStore = new SessionStore(this);
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    await this.sessionStore.load();
     this.updateLlmService();
 
     this.registerView(
@@ -81,7 +84,6 @@ export default class RsvpPlugin extends Plugin {
   async toggleChatPanel(): Promise<ChatPanel | null> {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
     if (existing.length > 0) {
-      // Already open — focus or close it
       const leaf = existing[0];
       if (leaf.view instanceof ChatPanel) {
         this.app.workspace.revealLeaf(leaf);
@@ -89,7 +91,6 @@ export default class RsvpPlugin extends Plugin {
       }
     }
 
-    // Open in right sidebar
     const rightLeaf = this.app.workspace.getRightLeaf(false);
     if (!rightLeaf) return null;
 
@@ -108,7 +109,6 @@ export default class RsvpPlugin extends Plugin {
     return null;
   }
 
-  /** Get the active chat panel if it exists */
   getChatPanel(): ChatPanel | null {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
     if (leaves.length > 0 && leaves[0].view instanceof ChatPanel) {
@@ -117,12 +117,8 @@ export default class RsvpPlugin extends Plugin {
     return null;
   }
 
-  /** Called when LLM settings change */
   updateLlmService(): void {
-    if (
-      this.settings.llmEnabled &&
-      this.settings.llmApiKey
-    ) {
+    if (this.settings.llmEnabled && this.settings.llmApiKey) {
       if (this.llmService) {
         this.llmService.updateConfig(
           this.settings.llmProvider,
@@ -142,7 +138,6 @@ export default class RsvpPlugin extends Plugin {
       this.llmService = null;
     }
 
-    // Update chat panel if open
     const chat = this.getChatPanel();
     if (chat) {
       chat.llmService = this.llmService;
@@ -150,16 +145,20 @@ export default class RsvpPlugin extends Plugin {
     }
   }
 
-  onunload(): void {
+  async onunload(): Promise<void> {
+    await this.sessionStore.persist();
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_RSVP);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_CHAT);
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
   }
 
   async saveSettings(): Promise<void> {
-    await this.saveData(this.settings);
+    const allData = (await this.loadData()) ?? {};
+    Object.assign(allData, this.settings);
+    await this.saveData(allData);
   }
 }

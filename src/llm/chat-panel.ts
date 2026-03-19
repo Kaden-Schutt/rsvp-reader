@@ -2,11 +2,7 @@ import { ItemView, WorkspaceLeaf } from "obsidian";
 import { VIEW_TYPE_CHAT, Section, DEFAULT_SYSTEM_PROMPT } from "../types";
 import { LlmService, LlmMessage } from "./llm-service";
 import { SummaryManager } from "./summary-manager";
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
+import { ChatMessage } from "./session-store";
 
 const MAX_HISTORY = 6;
 
@@ -157,9 +153,13 @@ export class ChatPanel extends ItemView {
     }
   }
 
+  /** Called whenever messages change so the session can be persisted */
+  onMessagesChanged?: () => void;
+
   private addMessage(msg: ChatMessage): void {
     this.messages.push(msg);
     this.renderMessage(msg);
+    this.onMessagesChanged?.();
   }
 
   private renderMessage(msg: ChatMessage): void {
@@ -240,7 +240,27 @@ export class ChatPanel extends ItemView {
     }
   }
 
-  async onClose(): Promise<void> {
-    // State persists on the instance until plugin unloads
+  getMessages(): ChatMessage[] {
+    return [...this.messages];
   }
+
+  /** Restore messages from a persisted session */
+  restoreMessages(messages: ChatMessage[]): void {
+    this.messages = [...messages];
+    if (this.messagesEl) {
+      this.messagesEl.empty();
+      if (messages.length === 0) {
+        this.messagesEl.createDiv({
+          cls: "rsvp-chat-notice",
+          text: "Pause the reader and ask a question about what you're reading.",
+        });
+      } else {
+        for (const msg of this.messages) {
+          this.renderMessage(msg);
+        }
+      }
+    }
+  }
+
+  async onClose(): Promise<void> {}
 }

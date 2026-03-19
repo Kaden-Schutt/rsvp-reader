@@ -86,7 +86,7 @@ export class RsvpEngine {
   }
 
   pause(): void {
-    if (this.state.status !== "playing") return;
+    if (this.state.status === "paused") return;
     this.stopTimer();
     this.state.status = "paused";
     this.emit("stateChange", { ...this.state });
