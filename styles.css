@@ -1,0 +1,586 @@
+/* RSVP Reader Plugin Styles */
+
+.rsvp-view-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+  outline: none;
+  background: var(--background-primary);
+  overflow: hidden;
+}
+
+/* ===== Top region: fills available space, centers reader window ===== */
+.rsvp-top-region {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rsvp-center-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* ===== Info Bar ===== */
+.rsvp-info-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  flex-shrink: 0;
+}
+
+.rsvp-info-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rsvp-info-title {
+  font-weight: 600;
+  font-size: 0.95em;
+  color: var(--text-normal);
+}
+
+.rsvp-info-meta {
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+/* ===== Reader Window (fixed size, centered) ===== */
+.rsvp-reader-window {
+  position: relative;
+  width: calc(100% - 48px);
+  max-width: 800px;
+  height: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  overflow: hidden;
+}
+
+/* ===== Toast notification ===== */
+.rsvp-toast {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--background-primary-alt, var(--background-primary));
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: 0.8em;
+  font-weight: 500;
+  z-index: 10;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.rsvp-toast-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.rsvp-toast-hidden {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* ===== Section Header ===== */
+.rsvp-section-header {
+  padding: 12px 16px 0;
+  flex-shrink: 0;
+}
+
+.rsvp-heading-text {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+/* ===== Reader Area ===== */
+.rsvp-reader-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rsvp-wpm-overlay {
+  position: absolute;
+  bottom: 10px;
+  right: 14px;
+  font-size: 0.8em;
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
+/* ===== Word Display ===== */
+.rsvp-word-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.rsvp-word-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.rsvp-pivot-marker {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 8px;
+  background: var(--interactive-accent);
+  opacity: 0.5;
+}
+
+.rsvp-pivot-marker-top {
+  top: 0;
+}
+
+.rsvp-pivot-marker-bottom {
+  bottom: 0;
+}
+
+/* Hide pivot markers in idle state */
+.rsvp-idle .rsvp-pivot-marker {
+  opacity: 0;
+}
+
+.rsvp-idle .rsvp-orp svg {
+  width: 28px;
+  height: 28px;
+  opacity: 0.5;
+}
+
+.rsvp-word {
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+  font-size: 2.8em;
+  font-weight: 500;
+  transform-origin: center;
+}
+
+.rsvp-pre {
+  display: inline-block;
+  width: 200px;
+  text-align: right;
+  color: var(--text-normal);
+}
+
+.rsvp-orp {
+  color: var(--interactive-accent);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rsvp-post {
+  display: inline-block;
+  width: 200px;
+  text-align: left;
+  color: var(--text-normal);
+}
+
+/* ===== Controls ===== */
+.rsvp-controls {
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+  max-height: 600px;
+  opacity: 1;
+}
+
+.rsvp-controls.rsvp-controls-hidden {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Nav row */
+.rsvp-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 16px 8px;
+}
+
+.rsvp-nav-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.rsvp-nav-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--text-muted);
+}
+
+.rsvp-play-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.rsvp-play-btn:hover {
+  opacity: 0.85;
+}
+
+.rsvp-play-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.rsvp-nav-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Speed panel */
+.rsvp-speed-panel {
+  margin: 0 auto 8px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  width: calc(100% - 48px);
+  max-width: 480px;
+}
+
+.rsvp-speed-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.rsvp-wpm-big {
+  font-size: 1em;
+  color: var(--text-normal);
+}
+
+.rsvp-wpm-big strong {
+  font-size: 1.4em;
+  font-weight: 700;
+}
+
+.rsvp-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.rsvp-speed-adj-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.rsvp-speed-adj-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--text-muted);
+}
+
+.rsvp-wpm-slider {
+  flex: 1;
+}
+
+/* Preset buttons */
+.rsvp-presets-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.rsvp-preset-btn {
+  flex: 1;
+  padding: 5px 4px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-size: 0.85em;
+  font-weight: 600;
+  transition: border-color 0.15s, background 0.2s, color 0.15s;
+}
+
+.rsvp-preset-btn small {
+  font-size: 0.65em;
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+.rsvp-preset-btn:hover {
+  border-color: var(--text-muted);
+  color: var(--text-normal);
+}
+
+.rsvp-preset-btn.rsvp-preset-active {
+  border-color: var(--interactive-accent);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.rsvp-preset-btn.rsvp-preset-active small {
+  opacity: 0.85;
+}
+
+/* Controls rows */
+.rsvp-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.rsvp-label-text {
+  font-size: 0.78em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.rsvp-chunk-select,
+.rsvp-section-select {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 0.78em;
+}
+
+.rsvp-section-select {
+  flex: 1;
+}
+
+/* Progress */
+.rsvp-progress-row {
+  padding: 8px 24px;
+  margin: 0 auto;
+  width: calc(100% - 48px);
+  max-width: 480px;
+}
+
+.rsvp-progress-bar {
+  height: 4px;
+  background: var(--background-modifier-border);
+  border-radius: 2px;
+  cursor: pointer;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.rsvp-progress-fill {
+  height: 100%;
+  background: var(--interactive-accent);
+  border-radius: 2px;
+  transition: width 0.1s ease;
+  width: 0%;
+}
+
+.rsvp-progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72em;
+  color: var(--text-faint);
+}
+
+/* Keyboard shortcut hints */
+.rsvp-shortcuts {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 6px 16px 12px;
+  flex-wrap: wrap;
+}
+
+.rsvp-shortcut-hint {
+  font-size: 0.72em;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.rsvp-shortcut-key {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  font-size: 0.9em;
+  font-family: var(--font-monospace);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Tooltip for W shortcut */
+.rsvp-has-tooltip {
+  cursor: help;
+}
+
+.rsvp-has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--background-primary-alt, var(--background-secondary));
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: 0.9em;
+  white-space: pre-line;
+  width: max-content;
+  max-width: 280px;
+  text-align: left;
+  line-height: 1.6;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 20;
+}
+
+.rsvp-has-tooltip:hover::after {
+  opacity: 1;
+}
+
+/* Persistent hints (visible when toolbar hidden) */
+.rsvp-persistent-hints {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px 16px;
+  flex-shrink: 0;
+  transition: opacity 0.3s ease, max-height 0.3s ease;
+  max-height: 40px;
+  opacity: 1;
+}
+
+.rsvp-persistent-hints.rsvp-persistent-hints-hidden {
+  max-height: 0;
+  opacity: 0;
+  padding: 0 16px;
+  overflow: hidden;
+}
+
+/* ===== Context Panel ===== */
+.rsvp-context-panel {
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--background-modifier-border);
+  transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.35s ease;
+  max-height: 300px;
+  opacity: 1;
+}
+
+.rsvp-context-panel.rsvp-context-hidden {
+  max-height: 0;
+  opacity: 0;
+  border-top-color: transparent;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.rsvp-context-label {
+  padding: 8px 16px 4px;
+  font-size: 0.68em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  background: var(--background-primary);
+  z-index: 1;
+}
+
+.rsvp-context-content {
+  padding: 4px 16px 16px;
+}
+
+.rsvp-context-paragraph {
+  margin-bottom: 12px;
+  line-height: 1.7;
+  color: var(--text-muted);
+  font-size: 0.88em;
+}
+
+.rsvp-context-word {
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.1s ease;
+}
+
+.rsvp-context-word:hover {
+  background: var(--background-modifier-hover);
+}
+
+.rsvp-context-word.rsvp-highlight {
+  background: var(--text-highlight-bg);
+  color: var(--text-normal);
+  font-weight: 600;
+  padding: 1px 1px;
+}
