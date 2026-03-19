@@ -1,14 +1,28 @@
+export type LlmProvider = "anthropic" | "openai";
+
 export interface RsvpSettings {
   defaultWpm: number;
   defaultChunkSize: number;
   showContextPanel: boolean;
   pauseOnSectionChange: boolean;
   highlightStyle: "word" | "sentence";
-  // Phase 2
+  // LLM
   llmEnabled: boolean;
+  llmProvider: LlmProvider;
   llmApiKey: string;
   llmModel: string;
+  llmBaseUrl: string;
+  llmSystemPrompt: string;
 }
+
+export const DEFAULT_SYSTEM_PROMPT = `You are a reading companion. The user is speed-reading a document and may pause to ask questions, take notes, or think out loud about what they're reading.
+
+You have access to:
+- A summary of everything read so far in this session
+- The full text of the section currently being read
+- The user's position in the document
+
+Be concise. When referencing the text, quote specific passages. Help the user understand arguments, context, and connections. If they share observations or notes, engage with those thoughtfully.`;
 
 export const DEFAULT_SETTINGS: RsvpSettings = {
   defaultWpm: 300,
@@ -17,8 +31,11 @@ export const DEFAULT_SETTINGS: RsvpSettings = {
   pauseOnSectionChange: true,
   highlightStyle: "word",
   llmEnabled: false,
+  llmProvider: "anthropic",
   llmApiKey: "",
   llmModel: "claude-sonnet-4-6",
+  llmBaseUrl: "",
+  llmSystemPrompt: DEFAULT_SYSTEM_PROMPT,
 };
 
 export interface ParsedDocument {
@@ -41,11 +58,8 @@ export interface Token {
   word: string;
   sectionIndex: number;
   paragraphIndex: number;
-  /** Character offset within the paragraph text */
   charOffset: number;
-  /** Length of the original word in the source text */
   charLength: number;
-  /** Global token index across the entire document */
   globalIndex: number;
 }
 

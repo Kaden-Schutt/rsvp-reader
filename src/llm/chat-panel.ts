@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf } from "obsidian";
-import { VIEW_TYPE_CHAT, Section } from "../types";
+import { VIEW_TYPE_CHAT, Section, DEFAULT_SYSTEM_PROMPT } from "../types";
 import { LlmService, LlmMessage } from "./llm-service";
 import { SummaryManager } from "./summary-manager";
 
@@ -7,21 +7,6 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
-
-const SYSTEM_PROMPT = `You are a knowledgeable reading companion helping a student work through dense primary source texts (political philosophy, legal opinions, founding documents). The student is using an RSVP speed reader in Obsidian.
-
-You have access to:
-- A summary of everything the student has read so far in this session
-- The full text of the section they are currently reading
-- Their current position in the document
-
-Guidelines:
-- Be concise but thorough
-- When referencing the text, quote specific passages
-- Help the student understand arguments, historical context, and connections between ideas
-- If they seem confused, break things down simply
-- You can ask clarifying questions
-- Don't summarize unless asked — the student wants to engage with the text, not skip it`;
 
 const MAX_HISTORY = 6;
 
@@ -36,6 +21,7 @@ export class ChatPanel extends ItemView {
   // Set by the plugin/view
   llmService: LlmService | null = null;
   summaryManager: SummaryManager | null = null;
+  systemPrompt: string = DEFAULT_SYSTEM_PROMPT;
   currentSection: Section | null = null;
   currentSectionIndex = 0;
   currentTokenIndex = 0;
@@ -155,7 +141,7 @@ export class ChatPanel extends ItemView {
       apiMessages.push({ role: "user", content: userMsg });
 
       const response = await this.llmService.sendMessage({
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: this.systemPrompt,
         messages: apiMessages,
         maxTokens: 1024,
       });

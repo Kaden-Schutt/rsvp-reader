@@ -213,10 +213,13 @@ export class RsvpView extends ItemView {
   }
 
   private async openChat(): Promise<void> {
+    // Auto-pause when opening chat
+    this.engine?.pause();
     const chat = await this.plugin.toggleChatPanel();
-    if (chat && this.summaryManager) {
+    if (chat) {
       chat.summaryManager = this.summaryManager;
       chat.llmService = this.plugin.llmService;
+      chat.systemPrompt = this.plugin.settings.llmSystemPrompt;
       if (this.document && this.engine) {
         const token = this.engine.getCurrentToken();
         const si = token?.sectionIndex ?? 0;

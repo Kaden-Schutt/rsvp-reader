@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type RsvpPlugin from "./main";
-import { DEFAULT_SETTINGS } from "./types";
+import { DEFAULT_SETTINGS, DEFAULT_SYSTEM_PROMPT } from "./types";
 
 export class RsvpSettingTab extends PluginSettingTab {
   plugin: RsvpPlugin;
@@ -95,13 +95,35 @@ export class RsvpSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Anthropic API key")
+      .setName("Provider")
+      .setDesc("LLM API provider")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions({
+            anthropic: "Anthropic (Claude)",
+            openai: "OpenAI / Compatible",
+          })
+          .setValue(this.plugin.settings.llmProvider)
+          .onChange(async (value) => {
+            this.plugin.settings.llmProvider = value as "anthropic" | "openai";
+            await this.plugin.saveSettings();
+            this.plugin.updateLlmService();
+            this.display(); // re-render to update model options
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("API key")
       .setDesc("Stored locally in the plugin's data.json file")
       .addText((text) => {
         text.inputEl.type = "password";
         text.inputEl.style.width = "300px";
         text
-          .setPlaceholder("sk-ant-...")
+          .setPlaceholder(
+            this.plugin.settings.llmProvider === "anthropic"
+              ? "sk-ant-..."
+              : "sk-..."
+          )
           .setValue(this.plugin.settings.llmApiKey)
           .onChange(async (value) => {
             this.plugin.settings.llmApiKey = value;
@@ -113,18 +135,54 @@ export class RsvpSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Model")
       .setDesc("Model used for chat and summaries")
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions({
-            "claude-sonnet-4-6": "Claude Sonnet 4.6",
-            "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
-          })
+      .addText((text) => {
+        text
+          .setPlaceholder(
+            this.plugin.settings.llmProvider === "anthropic"
+              ? "claude-sonnet-4-6"
+              : "gpt-4o"
+          )
           .setValue(this.plugin.settings.llmModel)
           .onChange(async (value) => {
             this.plugin.settings.llmModel = value;
             await this.plugin.saveSettings();
             this.plugin.updateLlmService();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Base URL (optional)")
+      .setDesc(
+        "Override the API endpoint. Leave empty for defaults. Useful for proxies or OpenAI-compatible APIs (e.g. Ollama, Together)."
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("https://api.example.com")
+          .setValue(this.plugin.settings.llmBaseUrl)
+          .onChange(async (value) => {
+            this.plugin.settings.llmBaseUrl = value;
+            await this.plugin.saveSettings();
+            this.plugin.updateLlmService();
           })
       );
+
+    new Setting(containerEl)
+      .setName("System prompt")
+      .setDesc(
+        "Instructions for the reading partner. Customize for your use case."
+      )
+      .addTextArea((textarea) => {
+        textarea.inputEl.rows = 8;
+        textarea.inputEl.style.width = "100%";
+        textarea.inputEl.style.fontFamily = "var(--font-monospace)";
+        textarea.inputEl.style.fontSize = "0.85em";
+        textarea
+          .setPlaceholder(DEFAULT_SYSTEM_PROMPT)
+          .setValue(this.plugin.settings.llmSystemPrompt)
+          .onChange(async (value) => {
+            this.plugin.settings.llmSystemPrompt = value;
+            await this.plugin.saveSettings();
+          });
+      });
   }
 }

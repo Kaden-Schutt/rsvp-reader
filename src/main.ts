@@ -101,6 +101,7 @@ export default class RsvpPlugin extends Plugin {
     const chatPanel = rightLeaf.view;
     if (chatPanel instanceof ChatPanel) {
       chatPanel.llmService = this.llmService;
+      chatPanel.systemPrompt = this.settings.llmSystemPrompt;
       this.app.workspace.revealLeaf(rightLeaf);
       return chatPanel;
     }
@@ -124,13 +125,17 @@ export default class RsvpPlugin extends Plugin {
     ) {
       if (this.llmService) {
         this.llmService.updateConfig(
+          this.settings.llmProvider,
           this.settings.llmApiKey,
-          this.settings.llmModel
+          this.settings.llmModel,
+          this.settings.llmBaseUrl
         );
       } else {
         this.llmService = new LlmService(
+          this.settings.llmProvider,
           this.settings.llmApiKey,
-          this.settings.llmModel
+          this.settings.llmModel,
+          this.settings.llmBaseUrl
         );
       }
     } else {
@@ -141,6 +146,7 @@ export default class RsvpPlugin extends Plugin {
     const chat = this.getChatPanel();
     if (chat) {
       chat.llmService = this.llmService;
+      chat.systemPrompt = this.settings.llmSystemPrompt;
     }
   }
 
