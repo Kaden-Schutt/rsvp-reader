@@ -77,5 +77,54 @@ export class RsvpSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    // --- Reading Partner (LLM) ---
+    containerEl.createEl("h3", { text: "Reading Partner (LLM)" });
+
+    new Setting(containerEl)
+      .setName("Enable reading partner")
+      .setDesc("Enable AI-powered reading companion in the sidebar")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.llmEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings.llmEnabled = value;
+            await this.plugin.saveSettings();
+            this.plugin.updateLlmService();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Anthropic API key")
+      .setDesc("Stored locally in the plugin's data.json file")
+      .addText((text) => {
+        text.inputEl.type = "password";
+        text.inputEl.style.width = "300px";
+        text
+          .setPlaceholder("sk-ant-...")
+          .setValue(this.plugin.settings.llmApiKey)
+          .onChange(async (value) => {
+            this.plugin.settings.llmApiKey = value;
+            await this.plugin.saveSettings();
+            this.plugin.updateLlmService();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Model")
+      .setDesc("Model used for chat and summaries")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions({
+            "claude-sonnet-4-6": "Claude Sonnet 4.6",
+            "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
+          })
+          .setValue(this.plugin.settings.llmModel)
+          .onChange(async (value) => {
+            this.plugin.settings.llmModel = value;
+            await this.plugin.saveSettings();
+            this.plugin.updateLlmService();
+          })
+      );
   }
 }

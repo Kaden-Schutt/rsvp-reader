@@ -37,6 +37,7 @@ export class RsvpControls {
 
   onToggleContext?: () => void;
   onShowToast?: (message: string) => void;
+  onToggleChat?: () => void;
 
   /** Double-tap tracking for arrow keys */
   private lastLeftTap = 0;
@@ -192,6 +193,7 @@ export class RsvpControls {
         "Word scrub",
         "Toggle word-level scrubbing: when on, \u2190/\u2192 move one word at a time instead of by sentence",
       ],
+      ["C", "Chat"],
     ];
     for (const [key, label, tooltip] of hints) {
       const hint = shortcutHints.createSpan({ cls: "rsvp-shortcut-hint" });
@@ -214,6 +216,7 @@ export class RsvpControls {
       "\u2191 \u2014 Speed up (+25 WPM)",
       "\u2193 \u2014 Slow down (-25 WPM)",
       "W \u2014 Toggle word-level scrubbing",
+      "C \u2014 Open reading partner chat",
       "T \u2014 Toggle source text",
       "H \u2014 Show/hide toolbar",
     ].join("\n");
@@ -222,6 +225,7 @@ export class RsvpControls {
       ["Space", "Play/Pause", allKeybindsTooltip],
       ["H", "Show toolbar"],
       ["T", "Full Text"],
+      ["C", "Chat"],
     ];
     for (const [key, label, tooltip] of phints) {
       const hint = this.persistentHints.createSpan({
@@ -397,6 +401,11 @@ export class RsvpControls {
           this.onShowToast?.(
             `Word scrub: ${this.wordScrubbing ? "on" : "off"}`
           );
+          break;
+
+        case "KeyC":
+          e.preventDefault();
+          this.onToggleChat?.();
           break;
       }
     });

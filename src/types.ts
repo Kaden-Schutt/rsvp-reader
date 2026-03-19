@@ -81,3 +81,4 @@ export interface ParagraphChangePayload {
 }
 
 export const VIEW_TYPE_RSVP = "rsvp-reader";
+export const VIEW_TYPE_CHAT = "rsvp-chat";

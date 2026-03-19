@@ -2,7 +2,6 @@ import { ItemView, TFile, WorkspaceLeaf } from "obsidian";
 import {
   VIEW_TYPE_RSVP,
   ParsedDocument,
-  RsvpSettings,
   TickPayload,
   SectionChangePayload,
   ParagraphChangePayload,
@@ -13,8 +12,11 @@ import { WordDisplay } from "./word-display";
 import { SectionHeader } from "./section-header";
 import { ContextPanel } from "./context-panel";
 import { RsvpControls } from "../player/rsvp-controls";
+import { SummaryManager } from "../llm/summary-manager";
+import type RsvpPlugin from "../main";
 
 export class RsvpView extends ItemView {
+  private plugin: RsvpPlugin;
   private engine: RsvpEngine | null = null;
   private wordDisplay: WordDisplay | null = null;
   private sectionHeader: SectionHeader | null = null;
@@ -22,15 +24,20 @@ export class RsvpView extends ItemView {
   private controls: RsvpControls | null = null;
   private document: ParsedDocument | null = null;
   private filePath: string = "";
-  private settings: RsvpSettings;
   private infoBar: HTMLElement | null = null;
   private wpmOverlay: HTMLElement | null = null;
   private toastEl: HTMLElement | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  private summaryManager: SummaryManager | null = null;
+  private prevSectionIndex = 0;
 
-  constructor(leaf: WorkspaceLeaf, settings: RsvpSettings) {
+  constructor(leaf: WorkspaceLeaf, plugin: RsvpPlugin) {
     super(leaf);
-    this.settings = settings;
+    this.plugin = plugin;
+  }
+
+  get settings() {
+    return this.plugin.settings;
   }
 
   getViewType(): string {
@@ -65,10 +72,26 @@ export class RsvpView extends ItemView {
       this.settings.defaultChunkSize
     );
 
-    // === Top region: centers the reader window vertically in available space ===
+    // Set up summary manager if LLM is available
+    if (this.plugin.llmService) {
+      this.summaryManager = new SummaryManager(
+        this.plugin.llmService,
+        this.document.title
+      );
+      // Provide it to the chat panel if open
+      const chat = this.plugin.getChatPanel();
+      if (chat) {
+        chat.summaryManager = this.summaryManager;
+        chat.llmService = this.plugin.llmService;
+        chat.clearMessages();
+      }
+    }
+
+    this.prevSectionIndex = 0;
+
+    // === Top region ===
     const topRegion = container.createDiv({ cls: "rsvp-top-region" });
 
-    // Info bar
     this.infoBar = topRegion.createDiv({ cls: "rsvp-info-bar" });
     const infoLeft = this.infoBar.createDiv({ cls: "rsvp-info-left" });
     infoLeft.createDiv({
@@ -77,31 +100,24 @@ export class RsvpView extends ItemView {
     });
     infoLeft.createDiv({ cls: "rsvp-info-meta" });
 
-    // Centering wrapper — pushes window to vertical center of remaining space
     const centerWrap = topRegion.createDiv({ cls: "rsvp-center-wrap" });
-
-    // Reader window (fixed size)
     const readerWindow = centerWrap.createDiv({ cls: "rsvp-reader-window" });
 
-    // Toast
     this.toastEl = readerWindow.createDiv({
       cls: "rsvp-toast rsvp-toast-hidden",
     });
 
-    // Section header
     this.sectionHeader = new SectionHeader(readerWindow);
     if (this.document.sections.length > 0) {
       this.sectionHeader.update(this.document.sections[0].heading);
     }
 
-    // Word display — click anywhere in reader to play/pause
     const readerArea = readerWindow.createDiv({ cls: "rsvp-reader-area" });
     readerArea.addEventListener("click", () => this.engine?.togglePlayPause());
     readerArea.style.cursor = "pointer";
     this.wordDisplay = new WordDisplay(readerArea);
     this.wordDisplay.clear();
 
-    // WPM overlay
     this.wpmOverlay = readerWindow.createDiv({ cls: "rsvp-wpm-overlay" });
     this.wpmOverlay.textContent = `${this.engine.getState().wpm} wpm`;
 
@@ -109,6 +125,7 @@ export class RsvpView extends ItemView {
     this.controls = new RsvpControls(container, this.engine, this.document);
     this.controls.onToggleContext = () => this.contextPanel?.toggleVisible();
     this.controls.onShowToast = (msg: string) => this.showToast(msg);
+    this.controls.onToggleChat = () => this.openChat();
     this.controls.registerKeyboard(container);
 
     // === Context panel ===
@@ -128,6 +145,20 @@ export class RsvpView extends ItemView {
         this.contextPanel.highlightToken(payload.tokens[0]);
       }
       this.updateInfoBar(payload.state.currentTokenIndex, payload.state);
+
+      // Update chat panel position
+      if (payload.tokens.length > 0) {
+        const token = payload.tokens[0];
+        const chat = this.plugin.getChatPanel();
+        if (chat && this.document) {
+          chat.updatePosition(
+            this.document.sections[token.sectionIndex],
+            token.sectionIndex,
+            payload.state.currentTokenIndex,
+            payload.state.totalTokens
+          );
+        }
+      }
     });
 
     this.engine.on("stateChange", () => {
@@ -142,6 +173,21 @@ export class RsvpView extends ItemView {
       this.contextPanel?.setSection(payload.section, payload.sectionIndex);
       this.controls?.setCurrentSection(payload.sectionIndex);
 
+      // Summarize the completed section
+      if (
+        this.summaryManager &&
+        this.document &&
+        this.prevSectionIndex !== payload.sectionIndex
+      ) {
+        const prevSection = this.document.sections[this.prevSectionIndex];
+        if (prevSection) {
+          this.summaryManager
+            .onSectionComplete(this.prevSectionIndex, prevSection)
+            .catch(() => {});
+        }
+      }
+      this.prevSectionIndex = payload.sectionIndex;
+
       if (this.settings.pauseOnSectionChange) {
         this.engine?.pause();
       }
@@ -151,10 +197,37 @@ export class RsvpView extends ItemView {
 
     this.engine.on("complete", () => {
       this.wordDisplay?.clear();
+      // Summarize final section
+      if (this.summaryManager && this.document) {
+        const lastSection = this.document.sections[this.prevSectionIndex];
+        if (lastSection) {
+          this.summaryManager
+            .onSectionComplete(this.prevSectionIndex, lastSection)
+            .catch(() => {});
+        }
+      }
     });
 
     this.updateInfoBar(0, this.engine.getState());
     container.focus();
+  }
+
+  private async openChat(): Promise<void> {
+    const chat = await this.plugin.toggleChatPanel();
+    if (chat && this.summaryManager) {
+      chat.summaryManager = this.summaryManager;
+      chat.llmService = this.plugin.llmService;
+      if (this.document && this.engine) {
+        const token = this.engine.getCurrentToken();
+        const si = token?.sectionIndex ?? 0;
+        chat.updatePosition(
+          this.document.sections[si],
+          si,
+          this.engine.getState().currentTokenIndex,
+          this.engine.getState().totalTokens
+        );
+      }
+    }
   }
 
   private showToast(message: string): void {
@@ -201,6 +274,7 @@ export class RsvpView extends ItemView {
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.engine?.pause();
     this.engine = null;
+    this.summaryManager = null;
   }
 
   getState(): Record<string, any> {
