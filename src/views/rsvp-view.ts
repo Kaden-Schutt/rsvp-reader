@@ -243,6 +243,7 @@ export class RsvpView extends ItemView {
       chat.summaryManager = this.summaryManager;
       chat.llmService = this.plugin.llmService;
       chat.systemPrompt = this.plugin.settings.llmSystemPrompt;
+      chat.appendInsertPattern = this.plugin.settings.appendInsertPattern;
       chat.sourceFilePath = this.filePath;
       chat.onMessagesChanged = () => this.persistSession();
 

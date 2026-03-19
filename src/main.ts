@@ -142,6 +142,7 @@ export default class RsvpPlugin extends Plugin {
     if (chat) {
       chat.llmService = this.llmService;
       chat.systemPrompt = this.settings.llmSystemPrompt;
+      chat.appendInsertPattern = this.settings.appendInsertPattern;
     }
   }
 

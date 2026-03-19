@@ -13,6 +13,10 @@ export interface RsvpSettings {
   llmModel: string;
   llmBaseUrl: string;
   llmSystemPrompt: string;
+  /** Pattern to find insertion point within a section for appending chat.
+   *  Matched as a regex within the target section. Chat is inserted after
+   *  the match. Empty = append at end of file. */
+  appendInsertPattern: string;
 }
 
 export const DEFAULT_SYSTEM_PROMPT = `You are a reading companion. The user is speed-reading a document and may pause to ask questions, take notes, or think out loud about what they're reading.
@@ -40,6 +44,7 @@ export const DEFAULT_SETTINGS: RsvpSettings = {
   llmModel: "claude-sonnet-4-6",
   llmBaseUrl: "",
   llmSystemPrompt: DEFAULT_SYSTEM_PROMPT,
+  appendInsertPattern: "",
 };
 
 export interface ParsedDocument {

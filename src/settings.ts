@@ -184,5 +184,24 @@ export class RsvpSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+
+    new Setting(containerEl)
+      .setName("Append insert pattern (regex)")
+      .setDesc(
+        "When appending chat to notes, insert after this pattern within the matching section. " +
+          "Leave empty to append at end of file. The pattern is matched as a regex within the section."
+      )
+      .addText((text) => {
+        text.inputEl.style.width = "100%";
+        text.inputEl.style.fontFamily = "var(--font-monospace)";
+        text.inputEl.style.fontSize = "0.85em";
+        text
+          .setPlaceholder("e.g. ### Raw Transcription[^\\n]*\\n```[\\s\\S]*?```\\n")
+          .setValue(this.plugin.settings.appendInsertPattern)
+          .onChange(async (value) => {
+            this.plugin.settings.appendInsertPattern = value;
+            await this.plugin.saveSettings();
+          });
+      });
   }
 }

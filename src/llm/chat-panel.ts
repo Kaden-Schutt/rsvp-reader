@@ -20,12 +20,12 @@ export class ChatPanel extends ItemView {
   llmService: LlmService | null = null;
   summaryManager: SummaryManager | null = null;
   systemPrompt: string = DEFAULT_SYSTEM_PROMPT;
+  appendInsertPattern = "";
   currentSection: Section | null = null;
   currentSectionIndex = 0;
   currentTokenIndex = 0;
   totalTokens = 0;
   sourceFilePath = "";
-  /** Token offset of current position within the current section */
   tokenOffsetInSection = 0;
 
   constructor(leaf: WorkspaceLeaf) {
@@ -233,43 +233,34 @@ export class ChatPanel extends ItemView {
   }
 
   /**
-   * Find the insertion point after the Raw Transcription code block
-   * for the given section heading. Returns -1 if not found.
+   * Find the insertion point within the matching section.
+   * Uses the configurable appendInsertPattern setting.
+   * Returns -1 if not found (caller falls back to appending at end).
    */
   private findInsertPosition(content: string, sectionHeading: string): number {
-    // Find the ## heading that matches (fuzzy — match the start)
-    const headingPattern = sectionHeading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const headingRegex = new RegExp(
-      `^## .*${headingPattern.slice(0, 30)}`,
-      "m"
-    );
+    if (!this.appendInsertPattern) return -1;
+
+    // Find the ## heading that matches
+    const escaped = sectionHeading
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .slice(0, 40);
+    const headingRegex = new RegExp(`^## .*${escaped}`, "m");
     const headingMatch = headingRegex.exec(content);
     if (!headingMatch) return -1;
 
     const afterHeading = content.slice(headingMatch.index);
 
-    // Find the ### Raw Transcription section
-    const rawTranscriptionMatch = afterHeading.match(
-      /### Raw Transcription[^\n]*\n```[\s\S]*?```\n/
-    );
-    if (rawTranscriptionMatch) {
-      const pos =
-        headingMatch.index +
-        (rawTranscriptionMatch.index ?? 0) +
-        rawTranscriptionMatch[0].length;
-      return pos;
-    }
-
-    // Find ### Notes upon Reflection and insert before it
-    const reflectionMatch = afterHeading.match(/### Notes upon Reflection/);
-    if (reflectionMatch && reflectionMatch.index !== undefined) {
-      return headingMatch.index + reflectionMatch.index;
-    }
-
-    // Find the next ## heading and insert before it
-    const nextHeading = afterHeading.slice(1).match(/\n## /);
-    if (nextHeading && nextHeading.index !== undefined) {
-      return headingMatch.index + 1 + nextHeading.index + 1;
+    // Apply the user's insert pattern within this section
+    try {
+      const insertRegex = new RegExp(this.appendInsertPattern, "s");
+      const insertMatch = insertRegex.exec(afterHeading);
+      if (insertMatch && insertMatch.index !== undefined) {
+        return (
+          headingMatch.index + insertMatch.index + insertMatch[0].length
+        );
+      }
+    } catch {
+      // Invalid regex — fall through
     }
 
     return -1;
