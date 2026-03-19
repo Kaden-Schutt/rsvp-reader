@@ -11,9 +11,10 @@ export class ChatPanel extends ItemView {
   private inputEl: HTMLTextAreaElement | null = null;
   private sendBtn: HTMLButtonElement | null = null;
   private statusEl: HTMLElement | null = null;
-  private appendBtn: HTMLButtonElement | null = null;
   private messages: ChatMessage[] = [];
   private isLoading = false;
+  /** Track how many messages have been appended so we can diff */
+  private appendedCount = 0;
 
   // Set by the plugin/view
   llmService: LlmService | null = null;
@@ -23,8 +24,9 @@ export class ChatPanel extends ItemView {
   currentSectionIndex = 0;
   currentTokenIndex = 0;
   totalTokens = 0;
-  /** Path of the source file being read */
   sourceFilePath = "";
+  /** Token offset of current position within the current section */
+  tokenOffsetInSection = 0;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -52,12 +54,23 @@ export class ChatPanel extends ItemView {
     const headerTop = header.createDiv({ cls: "rsvp-chat-header-top" });
     headerTop.createDiv({ cls: "rsvp-chat-title", text: "Reading Partner" });
 
-    // Append to notes button
-    this.appendBtn = headerTop.createEl("button", {
-      cls: "rsvp-chat-append-btn",
-      text: "Append to Notes",
+    const headerBtns = headerTop.createDiv({ cls: "rsvp-chat-header-btns" });
+
+    const appendBtn = headerBtns.createEl("button", {
+      cls: "rsvp-chat-header-btn",
+      text: "Append",
     });
-    this.appendBtn.addEventListener("click", () => this.handleAppend());
+    appendBtn.addEventListener("click", () => this.handleAppend());
+
+    const clearBtn = headerBtns.createEl("button", {
+      cls: "rsvp-chat-header-btn",
+      text: "Clear",
+    });
+    clearBtn.addEventListener("click", () => {
+      this.clearMessages();
+      this.onMessagesChanged?.();
+      new Notice("Chat cleared");
+    });
 
     this.statusEl = header.createDiv({ cls: "rsvp-chat-status" });
     this.updateStatus();
@@ -123,14 +136,15 @@ export class ChatPanel extends ItemView {
           this.currentSectionIndex,
           this.currentTokenIndex,
           this.totalTokens,
-          this.sourceFilePath
+          this.sourceFilePath,
+          this.tokenOffsetInSection
         );
         contextBlock = [
           `Document: ${ctx.documentTitle}`,
           `File: ${ctx.filePath}`,
           `Progress: ${ctx.currentTokenIndex}/${ctx.totalTokens} words`,
           `\nSummary of prior sections:\n${ctx.rollingSummary}`,
-          `\nCurrent section "${ctx.currentSectionHeading}":\n${ctx.currentSectionText}`,
+          `\nCurrent section "${ctx.currentSectionHeading}" (text read so far):\n${ctx.currentSectionText}`,
         ].join("\n");
       }
 
@@ -164,14 +178,14 @@ export class ChatPanel extends ItemView {
   }
 
   /**
-   * Append chat conversation to the corresponding notes file.
-   * Finds the notes file by replacing "Source Texts" with
-   * "Readings with transcribed commentary" in the filename.
-   * Falls back to creating a new file with "-chat" suffix.
+   * Append chat to the matching notes file, placed inside the
+   * correct ## Reading section. Only appends messages that haven't
+   * been appended yet (incremental/diff).
    */
   private async handleAppend(): Promise<void> {
-    if (this.messages.length === 0) {
-      new Notice("No messages to append.");
+    const newMessages = this.messages.slice(this.appendedCount);
+    if (newMessages.length === 0) {
+      new Notice("No new messages to append.");
       return;
     }
 
@@ -181,37 +195,89 @@ export class ChatPanel extends ItemView {
       return;
     }
 
-    // Format messages
     const sectionHeading = this.currentSection?.heading ?? "Reading";
     const timestamp = new Date().toLocaleString();
-    let block = `\n\n#### RSVP Chat — ${sectionHeading} (${timestamp})\n`;
+    let block = `\n#### RSVP Chat — ${sectionHeading} (${timestamp})\n`;
     block += `*Appended from RSVP Reader chat*\n\n`;
 
-    for (const msg of this.messages) {
+    for (const msg of newMessages) {
       const prefix = msg.role === "user" ? "**Me:**" : "**Reading Partner:**";
       block += `${prefix} ${msg.content}\n\n`;
     }
 
     block += `---\n`;
 
-    // Append to file
     const vault = this.app.vault;
     let file = vault.getAbstractFileByPath(notesPath);
 
     if (file instanceof TFile) {
-      await vault.append(file, block);
+      // Try to insert after the matching section's Raw Transcription block
+      const content = await vault.read(file);
+      const insertPos = this.findInsertPosition(content, sectionHeading);
+
+      if (insertPos >= 0) {
+        const newContent =
+          content.slice(0, insertPos) + block + content.slice(insertPos);
+        await vault.modify(file, newContent);
+      } else {
+        // Fallback: append at end
+        await vault.append(file, block);
+      }
       new Notice(`Appended to ${file.basename}`);
     } else {
-      // Create the file
       file = await vault.create(notesPath, block);
       new Notice(`Created ${notesPath}`);
     }
+
+    this.appendedCount = this.messages.length;
+  }
+
+  /**
+   * Find the insertion point after the Raw Transcription code block
+   * for the given section heading. Returns -1 if not found.
+   */
+  private findInsertPosition(content: string, sectionHeading: string): number {
+    // Find the ## heading that matches (fuzzy — match the start)
+    const headingPattern = sectionHeading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const headingRegex = new RegExp(
+      `^## .*${headingPattern.slice(0, 30)}`,
+      "m"
+    );
+    const headingMatch = headingRegex.exec(content);
+    if (!headingMatch) return -1;
+
+    const afterHeading = content.slice(headingMatch.index);
+
+    // Find the ### Raw Transcription section
+    const rawTranscriptionMatch = afterHeading.match(
+      /### Raw Transcription[^\n]*\n```[\s\S]*?```\n/
+    );
+    if (rawTranscriptionMatch) {
+      const pos =
+        headingMatch.index +
+        (rawTranscriptionMatch.index ?? 0) +
+        rawTranscriptionMatch[0].length;
+      return pos;
+    }
+
+    // Find ### Notes upon Reflection and insert before it
+    const reflectionMatch = afterHeading.match(/### Notes upon Reflection/);
+    if (reflectionMatch && reflectionMatch.index !== undefined) {
+      return headingMatch.index + reflectionMatch.index;
+    }
+
+    // Find the next ## heading and insert before it
+    const nextHeading = afterHeading.slice(1).match(/\n## /);
+    if (nextHeading && nextHeading.index !== undefined) {
+      return headingMatch.index + 1 + nextHeading.index + 1;
+    }
+
+    return -1;
   }
 
   private findNotesPath(): string | null {
     if (!this.sourceFilePath) return null;
 
-    // Try: replace "Source Texts" with "Readings with transcribed commentary"
     if (this.sourceFilePath.includes("Source Texts")) {
       return this.sourceFilePath.replace(
         "Source Texts",
@@ -219,7 +285,6 @@ export class ChatPanel extends ItemView {
       );
     }
 
-    // Fallback: same folder, append "-chat" before extension
     const lastDot = this.sourceFilePath.lastIndexOf(".");
     if (lastDot > 0) {
       return (
@@ -280,12 +345,16 @@ export class ChatPanel extends ItemView {
     section: Section,
     sectionIndex: number,
     tokenIndex: number,
-    totalTokens: number
+    totalTokens: number,
+    tokenOffsetInSection?: number
   ): void {
     this.currentSection = section;
     this.currentSectionIndex = sectionIndex;
     this.currentTokenIndex = tokenIndex;
     this.totalTokens = totalTokens;
+    if (tokenOffsetInSection !== undefined) {
+      this.tokenOffsetInSection = tokenOffsetInSection;
+    }
     this.updateStatus();
   }
 
@@ -305,6 +374,7 @@ export class ChatPanel extends ItemView {
 
   clearMessages(): void {
     this.messages = [];
+    this.appendedCount = 0;
     if (this.messagesEl) {
       this.messagesEl.empty();
       this.messagesEl.createDiv({

@@ -2,6 +2,7 @@ import { ItemView, TFile, WorkspaceLeaf } from "obsidian";
 import {
   VIEW_TYPE_RSVP,
   ParsedDocument,
+  Token,
   TickPayload,
   SectionChangePayload,
   ParagraphChangePayload,
@@ -162,16 +163,18 @@ export class RsvpView extends ItemView {
       }
       this.updateInfoBar(payload.state.currentTokenIndex, payload.state);
 
-      // Update chat panel position
+      // Update chat panel position with offset within section
       if (payload.tokens.length > 0) {
         const token = payload.tokens[0];
         const chat = this.plugin.getChatPanel();
         if (chat && this.document) {
+          const sectionOffset = this.getTokenOffsetInSection(token);
           chat.updatePosition(
             this.document.sections[token.sectionIndex],
             token.sectionIndex,
             payload.state.currentTokenIndex,
-            payload.state.totalTokens
+            payload.state.totalTokens,
+            sectionOffset
           );
         }
       }
@@ -253,12 +256,22 @@ export class RsvpView extends ItemView {
 
       if (this.document && this.engine) {
         const token = this.engine.getCurrentToken();
-        const si = token?.sectionIndex ?? 0;
+        const currentSi = token?.sectionIndex ?? 0;
+        const state = this.engine.getState();
+        const atSectionStart =
+          currentSi > 0 &&
+          currentSi !== this.prevSectionIndex &&
+          state.status === "paused";
+        const si = atSectionStart ? this.prevSectionIndex : currentSi;
+        const sectionOffset = token
+          ? this.getTokenOffsetInSection(token)
+          : 0;
         chat.updatePosition(
           this.document.sections[si],
           si,
-          this.engine.getState().currentTokenIndex,
-          this.engine.getState().totalTokens
+          state.currentTokenIndex,
+          state.totalTokens,
+          atSectionStart ? undefined : sectionOffset
         );
       }
     }
@@ -302,6 +315,25 @@ export class RsvpView extends ItemView {
     }
 
     meta.textContent = `${currentIndex} / ${state.totalTokens} words \u00B7 ${timeStr}`;
+  }
+
+  /**
+   * Calculate how many tokens into the current section this token is.
+   * Used to truncate context so the LLM only sees what the reader has read.
+   */
+  private getTokenOffsetInSection(token: Token): number {
+    if (!this.document) return 0;
+    const section = this.document.sections[token.sectionIndex];
+    if (!section) return 0;
+    // Count tokens in all paragraphs of this section up to this token
+    let offset = 0;
+    for (const paragraph of section.paragraphs) {
+      for (const t of paragraph.tokens) {
+        if (t.globalIndex >= token.globalIndex) return offset;
+        offset++;
+      }
+    }
+    return offset;
   }
 
   /** Persist current session state (debounced by SessionStore) */

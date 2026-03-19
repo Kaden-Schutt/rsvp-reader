@@ -99,16 +99,44 @@ export class SummaryManager {
     }
   }
 
+  /**
+   * Build reading context. If tokenOffsetInSection is provided,
+   * only include text up to that word position within the section
+   * so the LLM doesn't see ahead of the reader.
+   */
   getReadingContext(
     currentSection: Section,
     currentSectionIndex: number,
     currentTokenIndex: number,
     totalTokens: number,
-    filePath: string = ""
+    filePath: string = "",
+    tokenOffsetInSection?: number
   ): ReadingContext {
-    const currentSectionText = currentSection.paragraphs
-      .map((p) => p.text)
-      .join("\n\n");
+    let currentSectionText: string;
+
+    if (tokenOffsetInSection !== undefined && tokenOffsetInSection >= 0) {
+      // Only include paragraphs and words up to current position
+      const parts: string[] = [];
+      let tokensConsumed = 0;
+      for (const paragraph of currentSection.paragraphs) {
+        if (tokensConsumed >= tokenOffsetInSection) break;
+        const remainingTokens = tokenOffsetInSection - tokensConsumed;
+        if (paragraph.tokens.length <= remainingTokens) {
+          parts.push(paragraph.text);
+          tokensConsumed += paragraph.tokens.length;
+        } else {
+          // Partial paragraph — include only words up to the position
+          const words = paragraph.text.split(/\s+/);
+          parts.push(words.slice(0, remainingTokens).join(" ") + "...");
+          tokensConsumed += remainingTokens;
+        }
+      }
+      currentSectionText = parts.join("\n\n");
+    } else {
+      currentSectionText = currentSection.paragraphs
+        .map((p) => p.text)
+        .join("\n\n");
+    }
 
     return {
       documentTitle: this.documentTitle,
