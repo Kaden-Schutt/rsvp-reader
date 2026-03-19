@@ -1,16 +1,17 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, Notice } from "obsidian";
 import { VIEW_TYPE_CHAT, Section, DEFAULT_SYSTEM_PROMPT } from "../types";
 import { LlmService, LlmMessage } from "./llm-service";
 import { SummaryManager } from "./summary-manager";
 import { ChatMessage } from "./session-store";
 
-const MAX_HISTORY = 6;
+const MAX_HISTORY = 20;
 
 export class ChatPanel extends ItemView {
   private messagesEl: HTMLElement | null = null;
   private inputEl: HTMLTextAreaElement | null = null;
   private sendBtn: HTMLButtonElement | null = null;
   private statusEl: HTMLElement | null = null;
+  private appendBtn: HTMLButtonElement | null = null;
   private messages: ChatMessage[] = [];
   private isLoading = false;
 
@@ -22,6 +23,8 @@ export class ChatPanel extends ItemView {
   currentSectionIndex = 0;
   currentTokenIndex = 0;
   totalTokens = 0;
+  /** Path of the source file being read */
+  sourceFilePath = "";
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -46,7 +49,16 @@ export class ChatPanel extends ItemView {
 
     // Header
     const header = container.createDiv({ cls: "rsvp-chat-header" });
-    header.createDiv({ cls: "rsvp-chat-title", text: "Reading Partner" });
+    const headerTop = header.createDiv({ cls: "rsvp-chat-header-top" });
+    headerTop.createDiv({ cls: "rsvp-chat-title", text: "Reading Partner" });
+
+    // Append to notes button
+    this.appendBtn = headerTop.createEl("button", {
+      cls: "rsvp-chat-append-btn",
+      text: "Append to Notes",
+    });
+    this.appendBtn.addEventListener("click", () => this.handleAppend());
+
     this.statusEl = header.createDiv({ cls: "rsvp-chat-status" });
     this.updateStatus();
 
@@ -56,7 +68,7 @@ export class ChatPanel extends ItemView {
     if (!this.llmService) {
       this.messagesEl.createDiv({
         cls: "rsvp-chat-notice",
-        text: "Set your Anthropic API key in RSVP Reader settings to enable the reading partner.",
+        text: "Set your API key in RSVP Reader settings to enable the reading partner.",
       });
     } else {
       this.messagesEl.createDiv({
@@ -94,7 +106,7 @@ export class ChatPanel extends ItemView {
       this.addMessage({
         role: "assistant",
         content:
-          "Please set your Anthropic API key in Settings > RSVP Reader to use the reading partner.",
+          "Please set your API key in Settings > RSVP Reader to use the reading partner.",
       });
       return;
     }
@@ -104,33 +116,31 @@ export class ChatPanel extends ItemView {
     this.setLoading(true);
 
     try {
-      // Build context
       let contextBlock = "";
       if (this.summaryManager && this.currentSection) {
         const ctx = this.summaryManager.getReadingContext(
           this.currentSection,
           this.currentSectionIndex,
           this.currentTokenIndex,
-          this.totalTokens
+          this.totalTokens,
+          this.sourceFilePath
         );
         contextBlock = [
           `Document: ${ctx.documentTitle}`,
+          `File: ${ctx.filePath}`,
           `Progress: ${ctx.currentTokenIndex}/${ctx.totalTokens} words`,
           `\nSummary of prior sections:\n${ctx.rollingSummary}`,
           `\nCurrent section "${ctx.currentSectionHeading}":\n${ctx.currentSectionText}`,
         ].join("\n");
       }
 
-      // Build messages for the API
       const apiMessages: LlmMessage[] = [];
 
-      // Include recent chat history
       const recentHistory = this.messages.slice(-(MAX_HISTORY + 1), -1);
       for (const msg of recentHistory) {
         apiMessages.push({ role: msg.role, content: msg.content });
       }
 
-      // Current user message with context
       const userMsg = contextBlock
         ? `[Reading context:\n${contextBlock}]\n\nQuestion: ${text}`
         : text;
@@ -153,6 +163,75 @@ export class ChatPanel extends ItemView {
     }
   }
 
+  /**
+   * Append chat conversation to the corresponding notes file.
+   * Finds the notes file by replacing "Source Texts" with
+   * "Readings with transcribed commentary" in the filename.
+   * Falls back to creating a new file with "-chat" suffix.
+   */
+  private async handleAppend(): Promise<void> {
+    if (this.messages.length === 0) {
+      new Notice("No messages to append.");
+      return;
+    }
+
+    const notesPath = this.findNotesPath();
+    if (!notesPath) {
+      new Notice("Could not determine notes file. Open a source text first.");
+      return;
+    }
+
+    // Format messages
+    const sectionHeading = this.currentSection?.heading ?? "Reading";
+    const timestamp = new Date().toLocaleString();
+    let block = `\n\n#### RSVP Chat — ${sectionHeading} (${timestamp})\n`;
+    block += `*Appended from RSVP Reader chat*\n\n`;
+
+    for (const msg of this.messages) {
+      const prefix = msg.role === "user" ? "**Me:**" : "**Reading Partner:**";
+      block += `${prefix} ${msg.content}\n\n`;
+    }
+
+    block += `---\n`;
+
+    // Append to file
+    const vault = this.app.vault;
+    let file = vault.getAbstractFileByPath(notesPath);
+
+    if (file instanceof TFile) {
+      await vault.append(file, block);
+      new Notice(`Appended to ${file.basename}`);
+    } else {
+      // Create the file
+      file = await vault.create(notesPath, block);
+      new Notice(`Created ${notesPath}`);
+    }
+  }
+
+  private findNotesPath(): string | null {
+    if (!this.sourceFilePath) return null;
+
+    // Try: replace "Source Texts" with "Readings with transcribed commentary"
+    if (this.sourceFilePath.includes("Source Texts")) {
+      return this.sourceFilePath.replace(
+        "Source Texts",
+        "Readings with transcribed commentary"
+      );
+    }
+
+    // Fallback: same folder, append "-chat" before extension
+    const lastDot = this.sourceFilePath.lastIndexOf(".");
+    if (lastDot > 0) {
+      return (
+        this.sourceFilePath.slice(0, lastDot) +
+        "-chat" +
+        this.sourceFilePath.slice(lastDot)
+      );
+    }
+
+    return this.sourceFilePath + "-chat.md";
+  }
+
   /** Called whenever messages change so the session can be persisted */
   onMessagesChanged?: () => void;
 
@@ -165,14 +244,12 @@ export class ChatPanel extends ItemView {
   private renderMessage(msg: ChatMessage): void {
     if (!this.messagesEl) return;
 
-    // Remove initial notice if this is the first real message
     const notice = this.messagesEl.querySelector(".rsvp-chat-notice");
     if (notice) notice.remove();
 
     const bubble = this.messagesEl.createDiv({
       cls: `rsvp-chat-msg rsvp-chat-${msg.role}`,
     });
-    // Render with basic markdown-like formatting
     bubble.textContent = msg.content;
 
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
@@ -188,17 +265,14 @@ export class ChatPanel extends ItemView {
       this.inputEl.disabled = loading;
     }
 
-    // Show/remove thinking indicator
     if (loading && this.messagesEl) {
-      const thinking = this.messagesEl.createDiv({
+      this.messagesEl.createDiv({
         cls: "rsvp-chat-msg rsvp-chat-assistant rsvp-chat-thinking",
         text: "Thinking...",
       });
       this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
     } else {
-      this.messagesEl
-        ?.querySelector(".rsvp-chat-thinking")
-        ?.remove();
+      this.messagesEl?.querySelector(".rsvp-chat-thinking")?.remove();
     }
   }
 
@@ -244,7 +318,6 @@ export class ChatPanel extends ItemView {
     return [...this.messages];
   }
 
-  /** Restore messages from a persisted session */
   restoreMessages(messages: ChatMessage[]): void {
     this.messages = [...messages];
     if (this.messagesEl) {

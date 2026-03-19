@@ -240,6 +240,7 @@ export class RsvpView extends ItemView {
       chat.summaryManager = this.summaryManager;
       chat.llmService = this.plugin.llmService;
       chat.systemPrompt = this.plugin.settings.llmSystemPrompt;
+      chat.sourceFilePath = this.filePath;
       chat.onMessagesChanged = () => this.persistSession();
 
       // Restore messages from session if chat was just opened fresh

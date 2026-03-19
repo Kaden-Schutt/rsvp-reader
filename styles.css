@@ -598,11 +598,33 @@
   flex-shrink: 0;
 }
 
+.rsvp-chat-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
 .rsvp-chat-title {
   font-weight: 600;
   font-size: 0.95em;
   color: var(--text-normal);
-  margin-bottom: 2px;
+}
+
+.rsvp-chat-append-btn {
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: 0.72em;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.rsvp-chat-append-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--text-muted);
 }
 
 .rsvp-chat-status {

@@ -4,6 +4,7 @@ import { SectionSummaryData } from "./session-store";
 
 export interface ReadingContext {
   documentTitle: string;
+  filePath: string;
   rollingSummary: string;
   currentSectionText: string;
   currentSectionHeading: string;
@@ -102,7 +103,8 @@ export class SummaryManager {
     currentSection: Section,
     currentSectionIndex: number,
     currentTokenIndex: number,
-    totalTokens: number
+    totalTokens: number,
+    filePath: string = ""
   ): ReadingContext {
     const currentSectionText = currentSection.paragraphs
       .map((p) => p.text)
@@ -110,6 +112,7 @@ export class SummaryManager {
 
     return {
       documentTitle: this.documentTitle,
+      filePath,
       rollingSummary: this.rollingSummary || "(Nothing read yet)",
       currentSectionText,
       currentSectionHeading: currentSection.heading,
